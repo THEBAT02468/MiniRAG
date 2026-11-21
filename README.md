@@ -102,7 +102,7 @@ Este sistema implementa la arquitectura **RAG** para resolver ambos desafíos:
 ### 1. Clonar el repositorio
 ```bash
 git clone https://github.com/THEBAT02468/MiniRAG.git
-cd mini-rag-fastapi
+cd /MiniRAG
 ```
 
 ### 2. Configurar variables de entorno
