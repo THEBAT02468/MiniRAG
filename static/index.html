@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mini RAG — Groq + pgvector</title>
+  <style>
+    /* ══════════════════════════════════════════════
+       TOKENS & RESET
+    ══════════════════════════════════════════════ */
+    :root {
+      --bg-sidebar:   #1a1a2e;
+      --bg-main:      #0f0f1a;
+      --bg-bubble-ai: #1e1e32;
+      --bg-bubble-hu: #2d2250;
+      --bg-input:     #1a1a2e;
+      --bg-card:      #1e1e32;
+      --border:       #2a2a45;
+      --text-primary: #e8e6f0;
+      --text-secondary:#a09db8;
+      --text-muted:   #6b6887;
+      --accent:       #7c5cbf;
+      --accent-hover: #9272d4;
+      --accent-light: rgba(124,92,191,.15);
+      --success:      #4caf8a;
+      --warning:      #e8a838;
+      --danger:       #e05c5c;
+      --radius-sm:    8px;
+      --radius-md:    14px;
+      --radius-lg:    20px;
+      --font: 'Inter', system-ui, -apple-system, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+      --shadow: 0 4px 24px rgba(0,0,0,.4);
+      --transition: .18s ease;
+    }
+    [data-theme="light"] {
+      --bg-sidebar:   #f0eef8;
+      --bg-main:      #faf9fd;
+      --bg-bubble-ai: #edeaf7;
+      --bg-bubble-hu: #dbd4f5;
+      --bg-input:     #f0eef8;
+      --bg-card:      #edeaf7;
+      --border:       #d8d4ee;
+      --text-primary: #1a1733;
+      --text-secondary:#4a4567;
+      --text-muted:   #8a86a5;
+      --accent-light: rgba(124,92,191,.12);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: var(--font); background: var(--bg-main); color: var(--text-primary); }
+
+    /* ══════════════════════════════════════════════
+       LAYOUT
+    ══════════════════════════════════════════════ */
+    .app {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ══════════════════════════════════════════════
+       SIDEBAR
+    ══════════════════════════════════════════════ */
+    .sidebar {
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 20px 18px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, var(--accent), #a855f7);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .logo-text h1 { font-size: 15px; font-weight: 700; letter-spacing: .3px; }
+    .logo-text p  { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+    .sidebar-nav {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 10px;
+    }
+    .nav-section {
+      margin-bottom: 24px;
+    }
+    .nav-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--text-muted);
+      padding: 0 8px 6px;
+    }
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 10px;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 13.5px;
+      font-family: var(--font);
+      transition: background var(--transition), color var(--transition);
+      text-align: left;
+    }
+    .nav-btn:hover, .nav-btn.active {
+      background: var(--accent-light);
+      color: var(--text-primary);
+    }
+    .nav-btn.active { color: var(--accent-hover); font-weight: 600; }
+    .nav-btn .icon { font-size: 16px; flex-shrink: 0; }
+    .nav-btn .badge {
+      margin-left: auto;
+      background: var(--accent);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 20px;
+    }
+
+    /* Document list in sidebar */
+    .doc-list { padding: 0 8px; }
+    .doc-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      cursor: default;
+      border: 1px solid transparent;
+      transition: border-color var(--transition), background var(--transition);
+    }
+    .doc-item:hover { background: var(--accent-light); border-color: var(--border); }
+    .doc-item .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      flex-shrink: 0;
+    }
+    .doc-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .doc-item small { margin-left: auto; font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+
+    .sidebar-footer {
+      padding: 12px 10px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .theme-toggle {
+      background: var(--border);
+      border: none;
+      border-radius: 20px;
+      padding: 5px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: background var(--transition);
+    }
+    .theme-toggle:hover { background: var(--accent-light); }
+    .status-dot {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .status-dot::before {
+      content: '';
+      display: block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .4; }
+    }
+
+    /* ══════════════════════════════════════════════
+       MAIN PANELS
+    ══════════════════════════════════════════════ */
+    .main {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Tab panels */
+    .panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .panel.active { display: flex; }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      background: var(--bg-main);
+    }
+    .topbar-title { font-size: 15px; font-weight: 600; }
+    .topbar-sub   { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+    .topbar-actions { display: flex; gap: 8px; }
+    .btn-icon {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 7px 11px;
+      font-size: 14px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: all var(--transition);
+    }
+    .btn-icon:hover { border-color: var(--accent); color: var(--text-primary); }
+
+    /* ══════════════════════════════════════════════
+       CHAT PANEL
+    ══════════════════════════════════════════════ */
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 0;
+      scroll-behavior: smooth;
+    }
+    .chat-messages::-webkit-scrollbar { width: 5px; }
+    .chat-messages::-webkit-scrollbar-track { background: transparent; }
+    .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+    .message-wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .message {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 24px;
+      animation: fadeUp .25s ease;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .avatar {
+      width: 34px; height: 34px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .avatar.ai  { background: linear-gradient(135deg, var(--accent), #a855f7); }
+    .avatar.user{ background: var(--bg-bubble-hu); border: 1px solid var(--border); }
+
+    .bubble {
+      flex: 1;
+      min-width: 0;
+    }
+    .bubble-meta {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .bubble-name { font-size: 13px; font-weight: 600; }
+    .bubble-time { font-size: 11px; color: var(--text-muted); }
+
+    .bubble-content {
+      background: var(--bg-bubble-ai);
+      border: 1px solid var(--border);
+      border-radius: 4px var(--radius-md) var(--radius-md) var(--radius-md);
+      padding: 14px 16px;
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--text-primary);
+    }
+    .message.user .bubble-content {
+      background: var(--bg-bubble-hu);
+      border-radius: var(--radius-md) 4px var(--radius-md) var(--radius-md);
+    }
+
+    /* Sources accordion */
+    .sources-toggle {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--accent-hover);
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: var(--font);
+      padding: 0;
+    }
+    .sources-toggle:hover { text-decoration: underline; }
+    .sources-panel {
+      margin-top: 10px;
+      display: none;
+    }
+    .sources-panel.open { display: block; }
+    .source-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      font-size: 12.5px;
+    }
+    .source-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .source-name { font-weight: 600; color: var(--accent-hover); font-size: 12px; }
+    .sim-badge {
+      font-size: 10.5px;
+      padding: 2px 7px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+    .sim-high { background: rgba(76,175,138,.2); color: var(--success); }
+    .sim-mid  { background: rgba(232,168,56,.2); color: var(--warning); }
+    .sim-low  { background: rgba(224,92,92,.2);  color: var(--danger); }
+    .source-snippet { color: var(--text-secondary); line-height: 1.5; }
+
+    /* Thinking indicator */
+    .thinking {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .thinking .dots {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 10px 14px;
+      background: var(--bg-bubble-ai);
+      border: 1px solid var(--border);
+      border-radius: 4px var(--radius-md) var(--radius-md) var(--radius-md);
+    }
+    .thinking .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: bounce .9s infinite;
+    }
+    .thinking .dot:nth-child(2) { animation-delay: .15s; }
+    .thinking .dot:nth-child(3) { animation-delay: .3s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(.7); opacity: .5; }
+      40%            { transform: scale(1.1); opacity: 1; }
+    }
+
+    /* Welcome screen */
+    .welcome {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 40px 24px;
+      gap: 20px;
+    }
+    .welcome-logo {
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, var(--accent), #a855f7);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+      box-shadow: 0 8px 32px rgba(124,92,191,.4);
+    }
+    .welcome h2 { font-size: 24px; font-weight: 700; }
+    .welcome p  { font-size: 14px; color: var(--text-secondary); max-width: 400px; line-height: 1.6; }
+    .suggestions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      width: 100%;
+      max-width: 500px;
+      margin-top: 10px;
+    }
+    .suggestion-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      cursor: pointer;
+      text-align: left;
+      font-size: 13px;
+      color: var(--text-secondary);
+      transition: all var(--transition);
+      font-family: var(--font);
+    }
+    .suggestion-card:hover {
+      border-color: var(--accent);
+      color: var(--text-primary);
+      background: var(--accent-light);
+    }
+    .suggestion-card strong { display: block; font-size: 13.5px; color: var(--text-primary); margin-bottom: 3px; }
+
+    /* ── INPUT AREA ── */
+    .chat-input-area {
+      border-top: 1px solid var(--border);
+      padding: 16px 24px 20px;
+      background: var(--bg-main);
+      flex-shrink: 0;
+    }
+    .input-container {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .input-box {
+      background: var(--bg-input);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+    .input-box:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(124,92,191,.15);
+    }
+    .input-box textarea {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      resize: none;
+      font-family: var(--font);
+      font-size: 14px;
+      color: var(--text-primary);
+      line-height: 1.55;
+      max-height: 160px;
+      min-height: 24px;
+    }
+    .input-box textarea::placeholder { color: var(--text-muted); }
+    .send-btn {
+      width: 36px; height: 36px;
+      background: var(--accent);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background var(--transition), transform .1s;
+      font-size: 16px;
+    }
+    .send-btn:hover { background: var(--accent-hover); }
+    .send-btn:active { transform: scale(.93); }
+    .send-btn:disabled { background: var(--border); cursor: default; }
+    .input-hint { margin-top: 8px; font-size: 11.5px; color: var(--text-muted); text-align: center; }
+    .topk-selector {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .topk-selector label { font-size: 12px; color: var(--text-secondary); }
+    .topk-selector select {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 12px;
+      color: var(--text-primary);
+      font-family: var(--font);
+      cursor: pointer;
+    }
+
+    /* ══════════════════════════════════════════════
+       INGEST PANEL
+    ══════════════════════════════════════════════ */
+    .ingest-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 24px;
+    }
+    .ingest-body::-webkit-scrollbar { width: 5px; }
+    .ingest-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+    .ingest-inner { max-width: 680px; margin: 0 auto; }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .card h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card p { font-size: 13px; color: var(--text-secondary); margin-bottom: 18px; line-height: 1.6; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-label {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .form-input {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      font-size: 13.5px;
+      color: var(--text-primary);
+      font-family: var(--font);
+      transition: border-color var(--transition);
+      outline: none;
+    }
+    .form-input:focus { border-color: var(--accent); }
+    textarea.form-input { resize: vertical; min-height: 180px; line-height: 1.6; }
+
+    /* Drag & drop zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-md);
+      padding: 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: all var(--transition);
+      margin-bottom: 16px;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-light);
+    }
+    .drop-zone p    { font-size: 13.5px; color: var(--text-secondary); margin: 0; }
+    .drop-zone small{ font-size: 11.5px; color: var(--text-muted); }
+    .drop-zone .dz-icon { font-size: 32px; margin-bottom: 10px; display: block; }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: var(--radius-sm);
+      border: none;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { background: var(--border); color: var(--text-muted); cursor: default; }
+
+    .progress-bar-wrap {
+      background: var(--border);
+      border-radius: 20px;
+      height: 6px;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+    .progress-bar {
+      height: 100%;
+      border-radius: 20px;
+      background: linear-gradient(90deg, var(--accent), #a855f7);
+      width: 0%;
+      transition: width .4s ease;
+    }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 999;
+    }
+    .toast {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: var(--shadow);
+      animation: slideIn .25s ease;
+      max-width: 320px;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .toast.success { border-left: 3px solid var(--success); }
+    .toast.error   { border-left: 3px solid var(--danger); }
+    .toast.info    { border-left: 3px solid var(--accent); }
+
+    /* ══════════════════════════════════════════════
+       STATS PANEL
+    ══════════════════════════════════════════════ */
+    .stats-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 24px;
+    }
+    .stats-inner { max-width: 680px; margin: 0 auto; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      text-align: center;
+    }
+    .stat-value { font-size: 32px; font-weight: 700; color: var(--accent-hover); }
+    .stat-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    .api-block {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin-bottom: 14px;
+    }
+    .api-block h4 { font-size: 13.5px; font-weight: 600; margin-bottom: 12px; }
+    .endpoint {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      background: var(--bg-input);
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+    }
+    .method {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .method.post { background: rgba(76,175,138,.2); color: var(--success); }
+    .method.get  { background: rgba(56,152,232,.2); color: #5ba3f0; }
+
+    /* ══════════════════════════════════════════════
+       RESPONSIVE
+    ══════════════════════════════════════════════ */
+    @media (max-width: 700px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .suggestions { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ════════════════ SIDEBAR ════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">🧠</div>
+      <div class="logo-text">
+        <h1>Mini RAG</h1>
+        <p>pgvector · Groq · FastAPI</p>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-label">Navegación</div>
+        <button class="nav-btn active" onclick="switchPanel('chat')" id="nav-chat">
+          <span class="icon">💬</span> Chat
+        </button>
+        <button class="nav-btn" onclick="switchPanel('ingest')" id="nav-ingest">
+          <span class="icon">📄</span> Ingestar Documento
+        </button>
+        <button class="nav-btn" onclick="switchPanel('stats')" id="nav-stats">
+          <span class="icon">📊</span> API &amp; Stats
+        </button>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-label">Documentos Indexados</div>
+        <div class="doc-list" id="doc-list">
+          <div style="font-size:12px; color:var(--text-muted); padding: 6px 8px;">Sin documentos aún.</div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="status-dot" id="api-status">API conectada</div>
+      <button class="theme-toggle" onclick="toggleTheme()">🌙 Tema</button>
+    </div>
+  </aside>
+
+  <!-- ════════════════ MAIN ════════════════ -->
+  <main class="main">
+
+    <!-- ── CHAT PANEL ── -->
+    <div class="panel active" id="panel-chat">
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">💬 Chat con tus documentos</div>
+          <div class="topbar-sub">Pregunta en lenguaje natural, el RAG busca y Claude responde</div>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn-icon" onclick="clearChat()" title="Limpiar chat">🗑️</button>
+        </div>
+      </div>
+
+      <div class="chat-messages" id="chat-messages">
+        <!-- Welcome screen -->
+        <div class="welcome" id="welcome-screen">
+          <div class="welcome-logo">🧠</div>
+          <h2>¿En qué te ayudo hoy?</h2>
+          <p>Indexa tus documentos y luego hazme preguntas. Claude responderá citando solo la información de tus archivos.</p>
+          <div class="suggestions">
+            <button class="suggestion-card" onclick="fillQ('¿Qué temas cubre el documento?')">
+              <strong>📋 Explorar contenido</strong>
+              ¿Qué temas cubre el documento?
+            </button>
+            <button class="suggestion-card" onclick="fillQ('Dame un resumen de los puntos clave')">
+              <strong>📝 Resumen</strong>
+              Dame un resumen de los puntos clave
+            </button>
+            <button class="suggestion-card" onclick="fillQ('¿Cuáles son los requisitos principales?')">
+              <strong>✅ Requisitos</strong>
+              ¿Cuáles son los requisitos principales?
+            </button>
+            <button class="suggestion-card" onclick="fillQ('Explícame el proceso paso a paso')">
+              <strong>🔄 Procesos</strong>
+              Explícame el proceso paso a paso
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-input-area">
+        <div class="input-container">
+          <div class="topk-selector">
+            <label for="top-k">Fragmentos a recuperar:</label>
+            <select id="top-k">
+              <option value="2">2 — Rápido</option>
+              <option value="4" selected>4 — Balanceado</option>
+              <option value="6">6 — Completo</option>
+              <option value="8">8 — Exhaustivo</option>
+            </select>
+          </div>
+          <div class="input-box">
+            <textarea
+              id="chat-input"
+              rows="1"
+              placeholder="Haz una pregunta sobre tus documentos…"
+              onkeydown="handleKey(event)"
+              oninput="autoResize(this)"
+            ></textarea>
+            <button class="send-btn" id="send-btn" onclick="sendMessage()">➤</button>
+          </div>
+          <div class="input-hint">Enter para enviar · Shift+Enter para nueva línea</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── INGEST PANEL ── -->
+    <div class="panel" id="panel-ingest">
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">📄 Ingestar Documento</div>
+          <div class="topbar-sub">Sube texto para indexarlo con pgvector</div>
+        </div>
+      </div>
+
+      <div class="ingest-body">
+        <div class="ingest-inner">
+
+          <!-- Drop zone -->
+          <div class="card">
+            <h3>📂 Cargar desde archivo</h3>
+            <p>Arrastra un archivo .txt o haz click para seleccionarlo. El texto se extrae y se pega automáticamente.</p>
+            <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+              <span class="dz-icon">📎</span>
+              <p>Arrastra un <strong>.txt</strong> aquí</p>
+              <small>o haz click para explorar</small>
+            </div>
+            <input type="file" id="file-input" accept=".txt,.md,.csv" style="display:none" onchange="loadFile(event)" />
+          </div>
+
+          <!-- Manual form -->
+          <div class="card">
+            <h3>✏️ Pegar texto manualmente</h3>
+            <p>Introduce el nombre del documento y pega el texto completo. Se dividirá en fragmentos de ~800 chars con solapamiento.</p>
+
+            <div class="form-group">
+              <label class="form-label" for="source-name">Nombre del documento</label>
+              <input class="form-input" type="text" id="source-name"
+                     placeholder="ej: manual-usuario.txt" autocomplete="off" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="doc-text">Contenido del documento</label>
+              <textarea class="form-input" id="doc-text"
+                        placeholder="Pega aquí el texto completo…"></textarea>
+            </div>
+
+            <button class="btn btn-primary" id="ingest-btn" onclick="ingestDoc()">
+              ⚡ Indexar documento
+            </button>
+
+            <div class="progress-bar-wrap" id="progress-wrap" style="display:none">
+              <div class="progress-bar" id="progress-bar"></div>
+            </div>
+
+            <div id="ingest-result" style="margin-top:14px;font-size:13px;"></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STATS PANEL ── -->
+    <div class="panel" id="panel-stats">
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">📊 API &amp; Estadísticas</div>
+          <div class="topbar-sub">Estado del sistema y endpoints disponibles</div>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn-icon" onclick="refreshStats()">🔄</button>
+        </div>
+      </div>
+
+      <div class="stats-body">
+        <div class="stats-inner">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-value" id="stat-docs">—</div>
+              <div class="stat-label">Documentos</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="stat-frags">—</div>
+              <div class="stat-label">Fragmentos</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="stat-queries">0</div>
+              <div class="stat-label">Consultas (sesión)</div>
+            </div>
+          </div>
+
+          <div class="api-block">
+            <h4>🔗 Endpoints disponibles</h4>
+            <div class="endpoint">
+              <span class="method post">POST</span>
+              <span>/ingest — Indexar documento</span>
+            </div>
+            <div class="endpoint">
+              <span class="method post">POST</span>
+              <span>/ask — Consultar RAG</span>
+            </div>
+            <div class="endpoint">
+              <span class="method get">GET</span>
+              <span>/stats — Estadísticas de BD</span>
+            </div>
+            <div class="endpoint">
+              <span class="method get">GET</span>
+              <span>/docs — Swagger UI</span>
+            </div>
+          </div>
+
+          <div class="api-block">
+            <h4>⚙️ Configuración actual</h4>
+            <div class="endpoint"><span style="color:var(--text-muted);font-size:12px;">Embedding model</span><span style="margin-left:auto">all-MiniLM-L6-v2</span></div>
+            <div class="endpoint"><span style="color:var(--text-muted);font-size:12px;">LLM Provider</span><span style="margin-left:auto">🟠 Groq (free tier)</span></div>
+            <div class="endpoint"><span style="color:var(--text-muted);font-size:12px;">LLM Model</span><span style="margin-left:auto" id="cfg-llm">openai/gpt-oss-120b</span></div>
+            <div class="endpoint"><span style="color:var(--text-muted);font-size:12px;">Chunk size</span><span style="margin-left:auto">800 chars</span></div>
+            <div class="endpoint"><span style="color:var(--text-muted);font-size:12px;">Chunk overlap</span><span style="margin-left:auto">150 chars</span></div>
+            <div class="endpoint"><span style="color:var(--text-muted);font-size:12px;">Dimensión vector</span><span style="margin-left:auto">384</span></div>
+          </div>
+
+          <div class="api-block">
+            <h4>🟠 Modelos Groq activos en tu cuenta</h4>
+            <div class="endpoint"><span style="color:var(--success);font-size:12px;">⭐ Activo (Alta capacidad)</span><span style="margin-left:auto;font-family:var(--mono);font-size:12px;">openai/gpt-oss-120b</span></div>
+            <div class="endpoint"><span style="color:var(--text-muted);font-size:12px;">⚡ Rápido</span><span style="margin-left:auto;font-family:var(--mono);font-size:12px;">openai/gpt-oss-20b</span></div>
+            <div class="endpoint"><span style="color:var(--text-muted);font-size:12px;">💡 Versátil</span><span style="margin-left:auto;font-family:var(--mono);font-size:12px;">qwen/qwen3.8-27b</span></div>
+            <div style="padding:10px 12px;font-size:12px;color:var(--text-muted);">
+              Puedes cambiarlo editando <code>LLM_MODEL</code> en tu archivo <a href="file:///d:/Proyectos%20programming/RAG/.env">.env</a>.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+  /* ═══════════════════════════════════════════
+     CONFIG
+  ═══════════════════════════════════════════ */
+  const API_BASE = '';   // empty = same origin (FastAPI serves this file)
+  let sessionQueries = 0;
+  let indexedDocs = new Map(); // source -> fragment count
+
+  /* ═══════════════════════════════════════════
+     PANEL SWITCHING
+  ═══════════════════════════════════════════ */
+  function switchPanel(id) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('panel-' + id).classList.add('active');
+    document.getElementById('nav-' + id).classList.add('active');
+    if (id === 'stats') refreshStats();
+  }
+
+  /* ═══════════════════════════════════════════
+     THEME
+  ═══════════════════════════════════════════ */
+  function toggleTheme() {
+    const html = document.documentElement;
+    html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    document.querySelector('.theme-toggle').textContent =
+      html.getAttribute('data-theme') === 'dark' ? '🌙 Tema' : '☀️ Tema';
+  }
+
+  /* ═══════════════════════════════════════════
+     TOAST
+  ═══════════════════════════════════════════ */
+  function toast(msg, type = 'info', duration = 3500) {
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+    el.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+    document.getElementById('toast-container').appendChild(el);
+    setTimeout(() => el.remove(), duration);
+  }
+
+  /* ═══════════════════════════════════════════
+     CHAT
+  ═══════════════════════════════════════════ */
+  function now() {
+    return new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function autoResize(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  }
+
+  function fillQ(text) {
+    document.getElementById('chat-input').value = text;
+    document.getElementById('chat-input').focus();
+  }
+
+  function clearChat() {
+    const msgs = document.getElementById('chat-messages');
+    msgs.innerHTML = '';
+    // restore welcome
+    const w = document.createElement('div');
+    w.className = 'welcome';
+    w.id = 'welcome-screen';
+    w.innerHTML = `
+      <div class="welcome-logo">🧠</div>
+      <h2>¿En qué te ayudo hoy?</h2>
+      <p>Indexa tus documentos y luego hazme preguntas.</p>`;
+    msgs.appendChild(w);
+  }
+
+  function hideWelcome() {
+    const w = document.getElementById('welcome-screen');
+    if (w) w.remove();
+  }
+
+  function appendMessage(role, text, sources) {
+    hideWelcome();
+    const wrap = document.getElementById('chat-messages');
+    const isAI = role === 'ai';
+
+    const msgEl = document.createElement('div');
+    msgEl.className = `message ${isAI ? '' : 'user'}`;
+    msgEl.innerHTML = `
+      <div class="message-wrap" style="width:100%;max-width:100%;padding:0 24px;">
+        <div class="message ${isAI ? '' : 'user'}" style="margin-bottom:0">
+          <div class="avatar ${isAI ? 'ai' : 'user'}">${isAI ? '🧠' : '👤'}</div>
+          <div class="bubble">
+            <div class="bubble-meta">
+              <span class="bubble-name">${isAI ? 'Mini RAG' : 'Tú'}</span>
+              <span class="bubble-time">${now()}</span>
+            </div>
+            <div class="bubble-content">${escapeHtml(text)}</div>
+            ${isAI && sources && sources.length ? buildSources(sources) : ''}
+          </div>
+        </div>
+      </div>`;
+    wrap.appendChild(msgEl);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  function buildSources(sources) {
+    const id = 'src-' + Date.now();
+    const cards = sources.map((s, i) => {
+      const sim = s.similitud;
+      const cls = sim >= .7 ? 'sim-high' : sim >= .5 ? 'sim-mid' : 'sim-low';
+      return `<div class="source-card">
+        <div class="source-card-header">
+          <span class="source-name">📄 [${i+1}] ${escapeHtml(s.source)}</span>
+          <span class="sim-badge ${cls}">${(sim*100).toFixed(0)}% similitud</span>
+        </div>
+        <div class="source-snippet">${escapeHtml(s.fragmento)}…</div>
+      </div>`;
+    }).join('');
+    return `
+      <button class="sources-toggle" onclick="toggleSources('${id}')">
+        📚 Ver ${sources.length} fuente${sources.length > 1 ? 's' : ''} ▾
+      </button>
+      <div class="sources-panel" id="${id}">${cards}</div>`;
+  }
+
+  function toggleSources(id) {
+    const el = document.getElementById(id);
+    el.classList.toggle('open');
+    const btn = el.previousElementSibling;
+    btn.textContent = el.classList.contains('open')
+      ? btn.textContent.replace('▾', '▴')
+      : btn.textContent.replace('▴', '▾');
+  }
+
+  function showThinking() {
+    hideWelcome();
+    const wrap = document.getElementById('chat-messages');
+    const el = document.createElement('div');
+    el.id = 'thinking-indicator';
+    el.innerHTML = `
+      <div class="message-wrap" style="width:100%;max-width:100%;padding:0 24px;">
+        <div class="thinking">
+          <div class="avatar ai">🧠</div>
+          <div class="dots">
+            <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+          </div>
+        </div>
+      </div>`;
+    wrap.appendChild(el);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  function hideThinking() {
+    const el = document.getElementById('thinking-indicator');
+    if (el) el.remove();
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('chat-input');
+    const q = input.value.trim();
+    if (!q) return;
+
+    const topK = parseInt(document.getElementById('top-k').value);
+    input.value = '';
+    input.style.height = 'auto';
+    document.getElementById('send-btn').disabled = true;
+
+    appendMessage('user', q);
+    showThinking();
+
+    try {
+      const res = await fetch(`${API_BASE}/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q, top_k: topK }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      hideThinking();
+      appendMessage('ai', data.respuesta, data.fuentes);
+      sessionQueries++;
+    } catch (err) {
+      hideThinking();
+      appendMessage('ai', `❌ Error al conectar con la API: ${err.message}. ¿Está corriendo el servidor en localhost:8000?`, []);
+      toast('No se pudo conectar a la API', 'error');
+    } finally {
+      document.getElementById('send-btn').disabled = false;
+      input.focus();
+    }
+  }
+
+  /* ═══════════════════════════════════════════
+     INGEST
+  ═══════════════════════════════════════════ */
+  function loadFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('doc-text').value = e.target.result;
+      if (!document.getElementById('source-name').value)
+        document.getElementById('source-name').value = file.name;
+      toast(`Archivo cargado: ${file.name}`, 'info');
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  // Drag & drop
+  const dz = document.getElementById('drop-zone');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const fakeEvt = { target: { files: [file] } };
+      loadFile(fakeEvt);
+    }
+  });
+
+  async function ingestDoc() {
+    const source = document.getElementById('source-name').value.trim();
+    const text   = document.getElementById('doc-text').value.trim();
+    const result = document.getElementById('ingest-result');
+    const btn    = document.getElementById('ingest-btn');
+    const progWrap = document.getElementById('progress-wrap');
+    const progBar  = document.getElementById('progress-bar');
+
+    if (!source) { toast('Escribe el nombre del documento', 'error'); return; }
+    if (!text)   { toast('El texto está vacío', 'error'); return; }
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Indexando…';
+    result.textContent = '';
+    progWrap.style.display = 'block';
+    progBar.style.width = '30%';
+
+    try {
+      const res = await fetch(`${API_BASE}/ingest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source, text }),
+      });
+      progBar.style.width = '80%';
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      progBar.style.width = '100%';
+      const frags = data.fragmentos_guardados;
+      result.innerHTML = `<span style="color:var(--success)">✅ Indexado correctamente: <strong>${frags} fragmentos</strong> guardados en pgvector.</span>`;
+      toast(`✅ "${source}" indexado (${frags} frags)`, 'success');
+      addDocToSidebar(source, frags);
+      setTimeout(() => { progWrap.style.display = 'none'; progBar.style.width = '0%'; }, 1500);
+    } catch (err) {
+      progBar.style.width = '0%';
+      progWrap.style.display = 'none';
+      result.innerHTML = `<span style="color:var(--danger)">❌ Error: ${err.message}</span>`;
+      toast('Error al indexar: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '⚡ Indexar documento';
+    }
+  }
+
+  function addDocToSidebar(source, frags) {
+    indexedDocs.set(source, (indexedDocs.get(source) || 0) + frags);
+    renderDocList();
+  }
+
+  function renderDocList() {
+    const list = document.getElementById('doc-list');
+    if (indexedDocs.size === 0) {
+      list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:6px 8px;">Sin documentos aún.</div>';
+      return;
+    }
+    list.innerHTML = [...indexedDocs.entries()].map(([src, n]) => `
+      <div class="doc-item">
+        <div class="dot"></div>
+        <span title="${escapeHtml(src)}">${escapeHtml(src)}</span>
+        <small>${n}f</small>
+      </div>`).join('');
+  }
+
+  /* ═══════════════════════════════════════════
+     STATS
+  ═══════════════════════════════════════════ */
+  async function refreshStats() {
+    document.getElementById('stat-queries').textContent = sessionQueries;
+    try {
+      const res = await fetch(`${API_BASE}/stats`);
+      if (res.ok) {
+        const d = await res.json();
+        document.getElementById('stat-docs').textContent  = d.documentos  ?? '—';
+        document.getElementById('stat-frags').textContent = d.fragmentos  ?? '—';
+        document.getElementById('cfg-llm').textContent    = d.llm_model   ?? 'claude-haiku-5-5';
+      }
+    } catch {}
+  }
+
+  /* ═══════════════════════════════════════════
+     UTILS
+  ═══════════════════════════════════════════ */
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* ═══════════════════════════════════════════
+     INIT
+  ═══════════════════════════════════════════ */
+  (async () => {
+    try {
+      const r = await fetch(`${API_BASE}/stats`);
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      if (d.documentos) {
+        document.getElementById('stat-docs').textContent  = d.documentos;
+        document.getElementById('stat-frags').textContent = d.fragmentos;
+      }
+      document.getElementById('api-status').textContent = 'API conectada';
+    } catch {
+      document.getElementById('api-status').style.cssText =
+        '--success:#e05c5c; color:var(--danger)';
+      document.getElementById('api-status').textContent = 'API desconectada';
+    }
+  })();
+</script>
+</body>
+</html>
+

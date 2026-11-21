@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+psycopg[binary]
+pgvector
+numpy
+sentence-transformers
+groq
+aiofiles
+python-dotenv

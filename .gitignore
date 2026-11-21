@@ -1,0 +1,41 @@
+# Entornos virtuales
+venv/
+.venv/
+env/
+ENV/
+
+# Variables de entorno y secretos (NUNCA subir a GitHub)
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Python y caché
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Base de datos y volúmenes locales
+*.db
+*.sqlite3
+postgres_data/
+rag_data/
+
+# IDEs y editores
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs y temporales
+*.log
+logs/
+tmp/
+temp/

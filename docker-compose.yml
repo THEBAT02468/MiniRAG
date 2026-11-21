@@ -1,0 +1,16 @@
+services:
+  rag-db:
+    image: pgvector/pgvector:pg16
+    container_name: rag-db
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_DB: rag_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - rag_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  rag_data:
