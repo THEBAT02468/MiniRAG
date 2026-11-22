@@ -6,8 +6,6 @@ Sistema RAG (Retrieval-Augmented Generation) construido desde cero para indexar 
 
 Incluye una interfaz web inspirada en Claude, con carga de documentos (drag & drop), visor de fuentes y fragmentos citados con su similitud de coseno, y un panel con estadísticas de la base vectorial.
 
-> Es un proyecto de portafolio para practicar y demostrar la arquitectura RAG. Las limitaciones conocidas están al final de este documento.
-
 ![Interfaz del Mini RAG](docs/screenshot.png)
 
 ## 📌 ¿Qué problema resuelve?
