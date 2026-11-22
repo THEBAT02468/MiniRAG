@@ -1,34 +1,32 @@
 # 🧠 Mini RAG: Retrieval-Augmented Generation con FastAPI, pgvector y LLM
 
-[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-blue?logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791?logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docker.com)
-[![Groq](https://img.shields.io/badge/LLM-Groq%20Cloud-f55036)](https://groq.com)
+![Python](https://img.shields.io/badge/Python-3.12-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791) ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED) ![Groq](https://img.shields.io/badge/LLM-Groq-orange)
 
-Un sistema **RAG (Retrieval-Augmented Generation)** completo, robusto y de alto rendimiento construido desde cero para indexar y consultar información privada usando búsqueda semántica vectorial y modelos de lenguaje de última generación sin alucinaciones.
+Sistema RAG (Retrieval-Augmented Generation) construido desde cero para indexar y consultar documentos propios mediante búsqueda semántica vectorial y un modelo de lenguaje.
 
-Incluye una **UI moderna e interactiva inspirada en Claude** con soporte en tiempo real para ingesta de documentos (Drag & Drop), visor de fuentes y fragmentos citados con métricas de similitud de coseno, y panel de administración.
+Incluye una interfaz web inspirada en Claude, con carga de documentos (drag & drop), visor de fuentes y fragmentos citados con su similitud de coseno, y un panel con estadísticas de la base vectorial.
 
----
+> Es un proyecto de portafolio para practicar y demostrar la arquitectura RAG. Las limitaciones conocidas están al final de este documento.
 
-## 📌 ¿Qué hace este proyecto? (Problema que resuelve)
+![Interfaz del Mini RAG](docs/screenshot.png)
 
-Los modelos de lenguaje (LLMs) tienen limitaciones críticas en entornos corporativos:
-1. **Desactualización:** No conocen datos privados o recientes de la organización.
-2. **Alucinaciones:** Si desconocen un dato, pueden inventar respuestas erróneas.
+## 📌 ¿Qué problema resuelve?
 
-Este sistema implementa la arquitectura **RAG** para resolver ambos desafíos:
-- Extrae y procesa documentos (`.txt`, manuales, políticas, etc.).
-- Los fragmenta estratégicamente con solapamiento (*sliding window chunking*) para preservar el contexto de las ideas.
-- Genera representaciones matemáticas multidimensionales (**embeddings** de 384 dimensiones) usando el modelo local `all-MiniLM-L6-v2`.
-- Almacena e indexa los vectores en **PostgreSQL utilizando la extensión `pgvector`**.
-- Cuando el usuario hace una pregunta, realiza una **búsqueda por similitud de coseno** en la base de datos vectorial para recuperar únicamente los fragmentos más relevantes (`Top-K`).
-- Envía el contexto recuperado a un LLM (vía **Groq / LLaMA / GPT-OSS**) con un prompt estricto que **garantiza respuestas fidedignas con citas directas [1], [2] y cero alucinaciones**.
+Los modelos de lenguaje (LLMs) tienen limitaciones al trabajar con información de una organización:
 
----
+- **Desactualización:** no conocen datos privados o recientes.
+- **Alucinaciones:** si desconocen un dato, pueden inventar una respuesta.
 
-## 🏗️ Arquitectura del Sistema
+La arquitectura RAG ayuda a mitigar ambos problemas dándole al modelo, en cada pregunta, los fragmentos relevantes de tus documentos:
+
+1. Procesa documentos de texto (`.txt`, `.md`).
+2. Los divide en fragmentos con solapamiento (sliding window chunking) para no perder ideas en los cortes.
+3. Genera embeddings de 384 dimensiones con el modelo local `all-MiniLM-L6-v2`.
+4. Almacena los vectores en PostgreSQL con la extensión `pgvector`.
+5. Ante una pregunta, busca por similitud de coseno los fragmentos más relevantes (Top-K).
+6. Envía ese contexto a un LLM (vía Groq) con un prompt que lo instruye a responder solo con esa información y a citar los fragmentos como [1], [2]. Si la respuesta no está en los documentos, debe indicarlo.
+
+## 🏗️ Arquitectura del sistema
 
 ```
                   ┌──────────────────────────────────────────────┐
@@ -62,101 +60,101 @@ Este sistema implementa la arquitectura **RAG** para resolver ambos desafíos:
                                                [ LLM (Groq) ]
                                                      │
                                                      ▼
-[ Usuario ] ◄── Respuesta precisa con citas [1] ─────┘
+[ Usuario ] ◄── Respuesta con citas [1] ─────────────┘
 ```
 
----
+## 🛠️ Stack tecnológico
 
-## 🛠️ Stack Tecnológico
-
-| Capa | Tecnología | Justificación Técnica |
+| Capa | Tecnología | Justificación |
 |---|---|---|
-| **Lenguaje** | **Python 3.12** | Estándar de la industria en IA y Ciencia de Datos. |
-| **API Backend** | **FastAPI + Uvicorn** | Alta velocidad, asíncrono, tipado estático con Pydantic y documentación OpenAPI automática. |
-| **Vector DB** | **PostgreSQL + pgvector** | Base de datos relacional robusta con soporte nativo para indexación vectorial y búsqueda por distancia coseno (`<=>`). |
-| **Embeddings** | **Sentence-Transformers (`all-MiniLM-L6-v2`)** | Modelo local y eficiente (384 dimensiones) que evita costos por token de embedding y funciona sin latencia externa. |
-| **LLM Inference** | **Groq API (`openai/gpt-oss-120b`)** | Inferencia LPUs ultra-rápida (cero latencia de espera) y compatible con modelos abiertos. |
-| **Contenedores** | **Docker & Docker Compose** | Despliegue reproducible e independiente del motor PostgreSQL/pgvector. |
-| **Frontend** | **HTML5, CSS moderno & Vanilla JS** | UI personalizada tipo Claude, sin dependencias pesadas, ligera, responsive y con dark/light mode. |
+| Lenguaje | Python 3.12 | Estándar en IA y ciencia de datos. |
+| API Backend | FastAPI + Uvicorn | Rápido, con tipado vía Pydantic y documentación OpenAPI automática. |
+| Vector DB | PostgreSQL + pgvector | Base relacional conocida, con búsqueda por distancia coseno (`<=>`) e índice HNSW. |
+| Embeddings | Sentence-Transformers (`all-MiniLM-L6-v2`) | Modelo local y liviano (384 dimensiones): sin costo por embedding ni dependencia externa. |
+| LLM | Groq API (`openai/gpt-oss-120b`) | Inferencia rápida con modelos abiertos y capa gratuita. |
+| Contenedores | Docker & Docker Compose | Base de datos reproducible con un solo comando. |
+| Frontend | HTML, CSS y JavaScript vanilla | Interfaz ligera, responsive y con modo oscuro/claro. |
 
----
+## ✨ Características
 
-## ✨ Características Principales
+- ⚡ **Búsqueda semántica:** recupera por significado y no solo por palabras exactas.
+- 🎯 **Respuestas con citas:** cada respuesta referencia los fragmentos usados ([1], [2]) y puedes ver el texto y la similitud de cada uno.
+- 🛡️ **Respuestas ancladas al contexto:** el prompt de sistema limita al modelo a la información recuperada. Esto reduce las alucinaciones, pero no las elimina por completo.
+- 📂 **Ingesta drag & drop:** carga de documentos desde la interfaz o por la API REST.
+- ⚙️ **Top-K configurable:** selector de 2, 4, 6 u 8 fragmentos a recuperar.
+- 📊 **Estadísticas:** total de documentos, fragmentos y modelo activo.
 
-- ⚡ **Búsqueda Semántica Vectorial:** Recupera información por significado conceptual y no por coincidencia de palabras clave exactas.
-- 🎯 **Respuestas Auditables con Citas:** Cada afirmación generada por el LLM incluye referencias a los fragmentos indexados (`[1]`, `[2]`).
-- 🛡️ **Control de Alucinaciones:** Prompt de sistema optimizado que responde exclusivamente en base a los datos recuperados; si la respuesta no está en los documentos, el modelo lo indica de forma honesta.
-- 📂 **Panel de Ingesta Drag & Drop:** Carga interactiva de documentos desde la interfaz web o mediante endpoints REST.
-- 📊 **Inspección de Similitud en Tiempo Real:** Visor colapsable que detalla el fragmento exacto y el porcentaje de coincidencia con la pregunta formulada.
-- ⚙️ **Configuración Paramétrica:** Selector de `Top-K` dinámico en la UI para ajustar la profundidad de la recuperación (2, 4, 6 u 8 fragmentos).
-
----
-
-## 🚀 Instalación y Puesta en Marcha
+## 🚀 Instalación y puesta en marcha
 
 ### Prerrequisitos
-- [Python 3.11+](https://www.python.org/)
-- [Docker Desktop](https://www.docker.com/)
+
+- Python 3.11+
+- Docker Desktop
 - Una cuenta gratuita en [Groq Console](https://console.groq.com) para obtener una API key.
 
 ### 1. Clonar el repositorio
+
 ```bash
 git clone https://github.com/THEBAT02468/MiniRAG.git
-cd /MiniRAG
+cd MiniRAG
 ```
 
 ### 2. Configurar variables de entorno
-Copia la plantilla y configura tu clave de API:
+
 ```bash
 cp .env.example .env
 ```
+
 Edita `.env` con tu clave:
+
 ```env
 GROQ_API_KEY=gsk_tu_clave_de_groq_aqui
 LLM_MODEL=openai/gpt-oss-120b
 DATABASE_URL=postgresql://postgres:postgres@localhost:5437/rag_db
 ```
 
-### 3. Levantar la base de datos vectorial (Docker)
+### 3. Levantar la base de datos vectorial
+
 ```bash
 docker compose up -d
 ```
-> Esto iniciará un contenedor PostgreSQL 16 con la extensión `pgvector` preconfigurada y la tabla `documents` creada automáticamente.
+
+Inicia un contenedor PostgreSQL 16 con `pgvector` y crea la tabla `documents` automáticamente.
 
 ### 4. Crear el entorno virtual e instalar dependencias
+
 ```bash
 python -m venv venv
 
-# En Windows:
+# Windows
 venv\Scripts\activate
-# En Linux/macOS:
+# Linux/macOS
 source venv/bin/activate
 
 pip install -r requirements.txt
 ```
 
 ### 5. Iniciar la aplicación
+
 ```bash
 uvicorn main:app --reload --port 8000
 ```
 
-Accede a:
-- 🌐 **Interfaz Web:** [http://localhost:8000](http://localhost:8000)
-- 📖 **Documentación Swagger / OpenAPI:** [http://localhost:8000/docs](http://localhost:8000/docs)
-
----
+- 🌐 Interfaz web: http://localhost:8000
+- 📖 Swagger / OpenAPI: http://localhost:8000/docs
 
 ## 📡 Endpoints de la API
 
 | Método | Endpoint | Descripción |
 |---|---|---|
-| `GET` | `/` | Servidor de la interfaz gráfica interactiva. |
-| `POST` | `/ingest` | Procesa, genera embeddings y almacena un documento en la base vectorial. |
-| `POST` | `/ask` | Ejecuta la búsqueda semántica y genera la respuesta mediante el LLM. |
-| `GET` | `/stats` | Métricas del sistema (número de documentos, fragmentos indexados y modelo activo). |
-| `GET` | `/docs` | Documentación interactiva Swagger. |
+| GET | `/` | Sirve la interfaz web. |
+| POST | `/ingest` | Fragmenta un documento, genera embeddings y los guarda. |
+| POST | `/ask` | Busca por similitud y genera la respuesta con el LLM. |
+| GET | `/stats` | Número de documentos, fragmentos y modelo activo. |
+| GET | `/docs` | Documentación Swagger. |
 
-#### Ejemplo de Ingesta (`POST /ingest`):
+**Ejemplo de ingesta (`POST /ingest`):**
+
 ```json
 {
   "source": "politica_empresa.txt",
@@ -164,7 +162,8 @@ Accede a:
 }
 ```
 
-#### Ejemplo de Consulta (`POST /ask`):
+**Ejemplo de consulta (`POST /ask`):**
+
 ```json
 {
   "question": "¿Cuántos días de vacaciones tienen los empleados?",
@@ -172,7 +171,23 @@ Accede a:
 }
 ```
 
----
+## ⚠️ Limitaciones conocidas
+
+- Sin autenticación: cualquiera con acceso a la API puede cargar y consultar documentos.
+- CORS abierto, pensado solo para desarrollo local.
+- El chunking es por número de caracteres, no por estructura semántica del texto.
+- Solo admite `.txt` y `.md` (sin PDF ni otros formatos).
+- Sin reranking ni búsqueda híbrida (texto completo + vectores).
+- Sin pruebas automatizadas ni un conjunto de evaluación para medir la calidad de las respuestas.
+
+## 🧭 Próximos pasos
+
+- Armar un conjunto de evaluación (preguntas con la fuente esperada) para medir la recuperación.
+- Añadir reranking y búsqueda híbrida.
+- Soportar PDF y chunking por secciones.
+- Agregar autenticación y restringir CORS.
+- Escribir pruebas con `pytest` y un flujo de CI con GitHub Actions.
 
 ## 👨‍💻 Autor
-Desarrollado con enfoque en ingeniería de software para IA, arquitecturas de recuperación de información (RAG) y despliegue de modelos generativos en producción.
+
+Proyecto de portafolio de **Santiago López (THEBAT02468)** para practicar arquitecturas de recuperación de información (RAG) y la integración de LLMs en aplicaciones. Desarrollado con apoyo de herramientas de IA (Claude Code), que usé para acelerar la implementación mientras definía y revisaba la arquitectura.
